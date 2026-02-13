@@ -1,12 +1,13 @@
 -- =========================================================
---        ULTIMATE HOST PRO - HWID PROTECTED (VIP)
+--        ULTIMATE HOST PRO - BUSINESS EDITION (VIP)
 -- =========================================================
 -- Owner: Gonnn-Here
--- Versi: 1.6 (Added Fast Drop System)
+-- Versi: 1.7 (FULL COMMANDS + CUSTOM NAME + DROP SYSTEM)
 -- =========================================================
 
 local whitelistURL = "https://raw.githubusercontent.com/Gonnn-Here/my-database/main/waitlist.txt"
 local myHWID = getHWID()
+local myID = getLocal().name
 local isWhitelisted = false
 
 -- Variabel Fitur Utama
@@ -45,7 +46,19 @@ addEvent(Event.VariantList, function(varlist, netid)
         sendVariantList({[1]="OnConsoleMessage", [2]=msg}, netid)
     end
 
-    -- [ COMMAND: /fps & /wp ]
+    -- [ 2. CUSTOM NAME COMMANDS ]
+    if chat == "/hname" then
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid)
+        systemLog("`2[SYSTEM] `wName changed to `wHIDDEN"); return true
+    elseif chat == "/nlegend" then
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]"}, netid)
+        systemLog("`2[SYSTEM] `wName changed to `wLEGEND"); return true
+    elseif chat == "/nreset" then
+        sendVariantList({[1] = "OnNameChanged", [2] = myID}, netid)
+        systemLog("`2[SYSTEM] `wName reset to default"); return true
+    end
+
+    -- [ 3. UTILITY COMMANDS (/fps, /wp) ]
     if chat == "/fps" then
         fpsEnabled = not fpsEnabled
         systemLog("`2[SYSTEM] `wFPS Counter: " .. (fpsEnabled and "`9ON" or "`4OFF")); return true
@@ -54,7 +67,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         systemLog("`2[SYSTEM] `wWrench Pull Mode: " .. (wrenchPullMode and "`9ON" or "`4OFF")); return true
     end
 
-    -- [ LOGIKA WRENCH ]
+    -- [ 4. WRENCH & WHEEL LOGIC ]
     if varlist[1] == "OnDialogRequest" and varlist[2]:find("p_id") then
         local targetNetID = varlist[2]:match("p_id|(%d+)")
         if targetNetID then
@@ -63,38 +76,32 @@ addEvent(Event.VariantList, function(varlist, netid)
         end
     end
 
-    -- [ REAL WHEEL CHECKER ]
     if varlist[1] == "OnTalkBubble" and varlist[2]:find("spun the wheel and got") then
         local name, number = varlist[2]:match("CP:(%w+).+got (%d+)") or varlist[2]:match("(.+) spun the wheel and got (%d+)")
         if number then
             local totalDigit = 0
             for digit in number:gmatch(".") do totalDigit = totalDigit + tonumber(digit) end
             systemLog("`#REAL! `w" .. name .. " `2rolled `w" .. number .. " `0[`b" .. totalDigit .. "`0]")
+            sendVariantList({[1]="OnTextOverlay", [2]="`w" .. name .. " `2Punched `w" .. number .. " `0[`b" .. totalDigit .. "`0]"}, netid)
         end
     end
 
-    -- [ SISTEM DROP & PAY (LENGKAP) ]
+    -- [ 5. DROP & PAY SYSTEM ]
     local cmd, count = chat:match("(/%S+)%s+(%d+)")
     if not count then count = "1" end
     
-    -- Drop Satuan (Contoh: /dw 50)
-    if chat:find("/dw") then -- Drop Diamond Lock
+    if chat:find("/dw") then
         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. count); return true
-    elseif chat:find("/dd") then -- Drop World Lock
+    elseif chat:find("/dd") then
         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|242|\ncount|" .. count); return true
-    elseif chat:find("/db") then -- Drop Blue Gem Lock
+    elseif chat:find("/db") then
         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|7188|\ncount|" .. count); return true
-    
-    -- Drop Perkalian (Contoh: /pay 2x5)
     elseif chat:find("/pay") then
         local b, m = chat:match("(%d+)[xX*](%d+)")
         if b and m then
-            local total = tonumber(b) * tonumber(m)
-            sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. total)
-            systemLog("`2[SYSTEM] Paid " .. total .. " DLs."); return true
+            sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. (tonumber(b)*tonumber(m)))
+            systemLog("`2[SYSTEM] Paid " .. (tonumber(b)*tonumber(m)) .. " DLs."); return true
         end
-    
-    -- Drop All (Semua WL, DL, BGL keluar)
     elseif chat == "/dropall" then
         for _, id in ipairs({7188, 1796, 242}) do
             sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|200")
@@ -102,7 +109,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         systemLog("`wCleaning inventory..."); return true
     end
 
-    -- [ SPAM & WORLD SAVE ]
+    -- [ 6. SPAM & WORLD SAVE ]
     if chat:find("/sethome") then
         homeWorld = chat:match("/sethome%s+(%S+)"):upper()
         systemLog("`2[SYSTEM] Home: " .. homeWorld); return true
@@ -122,7 +129,7 @@ addEvent(Event.VariantList, function(varlist, netid)
     if varlist[1] == "OnPingRequest" then myPing = varlist[2] or 0 end
 end)
 
--- [ LOOP UTAMA ]
+-- [ 7. BACKGROUND LOOP ]
 addEvent(Event.Packet, function(type, packet)
     local currentTime = os.clock()
     frameCount = frameCount + 1
