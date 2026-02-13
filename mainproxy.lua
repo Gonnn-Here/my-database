@@ -1,33 +1,37 @@
 -- =========================================================
---        ULTIMATE HOST PRO - BUSINESS EDITION (VIP)
+--        ULTIMATE HOST PRO - HWID PROTECTED (VIP)
 -- =========================================================
 -- Owner: Gonnn-Here
--- Versi: 1.3 (Final Full Version)
--- Database: GitHub Integrated
+-- Versi: 1.4 (Final HWID Lock)
+-- Fitur: HWID Protected, Wrench-to-Pull, Auto-Pay, Wheel Check
 -- =========================================================
 
 local whitelistURL = "https://raw.githubusercontent.com/Gonnn-Here/my-database/main/waitlist.txt"
-local myID = getLocal().name
+local myHWID = getHWID() -- Fungsi otomatis mengambil ID perangkat
 local isWhitelisted = false
 
--- Variabel Global Fitur
+-- Variabel Fitur
 local wrenchPullMode = false
 local lastWrenchedNetID = -1
 local fastTele, spamActive = false, false
 local homeWorld, spamText = "", ""
 local lastSpamTime, spamInterval, myPing = 0, 0, 0
 
--- 1. SISTEM LISENSI (WHITELIST)
+-- 1. SISTEM LISENSI (HWID CHECK)
 function checkLicense()
-    local result, content = makeRequest(whitelistURL, "GET")
-    if content and content:find(myID) then
+    local status, content = makeRequest(whitelistURL, "GET")
+    
+    if status == 200 and content:find(myHWID) then
         isWhitelisted = true
-        local var = { [1] = "OnConsoleMessage", [2] = "`2[LICENSE] `wWelcome, " .. myID .. "! `2VIP Script Active." }
+        local var = { [1] = "OnConsoleMessage", [2] = "`2[LICENSE] `wHardware ID Recognized. Welcome, `w" .. getLocal().name .. "!" }
         sendVariantList(var, -1)
     else
         isWhitelisted = false
-        local var = { [1] = "OnConsoleMessage", [2] = "`4[LICENSE] `w" .. myID .. " is not Whitelisted! `4Buy from Gonnn-Here." }
+        -- Jika gagal, tampilkan HWID di layar agar pembeli bisa kasih kodenya ke kamu
+        local var = { [1] = "OnConsoleMessage", [2] = "`4[LICENSE] `wDevice not registered!\n`wYour HWID: `9" .. myHWID .. "\n`wSend this ID to Gonnn-Here to activate." }
         sendVariantList(var, -1)
+        -- Log ke console agar pembeli gampang copy-paste
+        print("KODE HWID KAMU: " .. myHWID)
     end
 end
 
@@ -37,14 +41,12 @@ addEvent(Event.VariantList, function(varlist, netid)
     if not isWhitelisted then return end 
 
     local chat = varlist[1]
-    
-    -- Fungsi Log Sistem
     local function systemLog(msg)
         local var = { [1] = "OnConsoleMessage", [2] = msg }
         sendVariantList(var, netid)
     end
 
-    -- 2. AUTO BALANCE INFO (Kuning & Putih)
+    -- 2. AUTO BALANCE INFO
     if varlist[1] == "OnSendToServer" or (varlist[1] == "OnConsoleMessage" and varlist[2]:find("Entered world")) then
         runOnMainThread(function()
             local wl = getInventory():getItemCount(242)
@@ -62,19 +64,18 @@ addEvent(Event.VariantList, function(varlist, netid)
         return true
     end
 
-    -- 4. LOGIKA WRENCH ACTION (Pull & Shortcut)
+    -- 4. WRENCH ACTION (Pull, Kick, Ban)
     if varlist[1] == "OnDialogRequest" and varlist[2]:find("p_id") then
         local targetNetID = varlist[2]:match("p_id|(%d+)")
         if targetNetID then
             lastWrenchedNetID = targetNetID
             if wrenchPullMode then
                 sendPacket(2, "action|input\n|text|/pull") 
-                return true -- Blokir panel wrench
+                return true
             end
         end
     end
 
-    -- SHORTCUT KICK & BAN (/k & /b)
     if chat == "/k" and lastWrenchedNetID ~= -1 then
         sendPacket(2, "action|input\n|text|/kick")
         return true
@@ -83,16 +84,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         return true
     end
 
-    -- 5. NAMA CUSTOM ([Ping] Name [NetID])
-    if chat == "/hname" then
-        local var = { [1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]" }
-        sendVariantList(var, netid); systemLog("`2[SYSTEM] Name: HIDDEN"); return true
-    elseif chat == "/nlegend" then
-        local var = { [1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]" }
-        sendVariantList(var, netid); systemLog("`2[SYSTEM] Name: LEGEND"); return true
-    end
-
-    -- 6. WHEEL SYSTEM (Check Real/Fake & Auto Count)
+    -- 5. REAL WHEEL CHECKER
     if varlist[1] == "OnTalkBubble" and varlist[2]:find("spun the wheel and got") then
         local name, number = varlist[2]:match("CP:(%w+).+got (%d+)") or varlist[2]:match("(.+) spun the wheel and got (%d+)")
         if number then
@@ -104,11 +96,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         end
     end
 
-    -- 7. FAST DROP & AUTO-PAY (Bypass Dialog)
-    local cmd, count = chat:match("(/%S+)%s+(%d+)")
-    if not count then count = "1" end
-    local items = { ["/dw"]=242, ["/dd"]=1796, ["/db"]=7188 }
-
+    -- 6. FAST PAY & DROP
     if chat:find("/pay") then
         local b, m = chat:match("(%d+)[xX*](%d+)")
         if b and m then
@@ -116,33 +104,12 @@ addEvent(Event.VariantList, function(varlist, netid)
             sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. total)
             systemLog("`2[SYSTEM] Paid " .. total .. " DLs."); return true
         end
-    elseif items[cmd] then
-        sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. items[cmd] .. "|\ncount|" .. count)
-        return true
-    elseif chat == "/dropall" then
-        for _, id in ipairs({7188, 1796, 242}) do
-            sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|200")
-        end
-        return true
     end
 
-    -- 8. FAST TELE & CONVERT (Telephone)
-    if chat == "/tele" then
-        fastTele = not fastTele
-        systemLog("`2[SYSTEM] Fast DL->BGL: " .. (fastTele and "`9ON" or "`4OFF")); return true
-    end
-    if fastTele and varlist[1] == "OnDialogRequest" and varlist[2]:find("Telephone") then
-        if varlist[2]:find("Change 100 Diamond Locks into a Blue Gem Lock") then
-            sendPacket(2, "action|dialog_return\ndialog_name|telephone\nbuttonClicked|bglconv")
-            systemLog("`2[SYSTEM] Converted 100 DLs to 1 BGL!"); return true
-        end
-    end
-
-    -- 9. WORLD SAVE & SPAM
+    -- 7. SPAM & WORLD SAVE
     if chat:find("/sethome") then
-        local target = chat:match("/sethome%s+(%S+)")
-        if target then homeWorld = target:upper() systemLog("`2[SYSTEM] Home set to: `w" .. homeWorld) end
-        return true
+        homeWorld = chat:match("/sethome%s+(%S+)"):upper()
+        systemLog("`2[SYSTEM] Home: " .. homeWorld); return true
     elseif chat == "/save" and homeWorld ~= "" then
         sendPacket(3, "action|join_request\nname|" .. homeWorld); return true
     elseif chat:find("/spam") then
@@ -156,11 +123,10 @@ addEvent(Event.VariantList, function(varlist, netid)
         return true
     end
 
-    -- Update Ping Data
     if varlist[1] == "OnPingRequest" then myPing = varlist[2] or 0 end
 end)
 
--- Background Loop (Spam)
+-- Background Loop Spam
 addEvent(Event.Packet, function(type, packet)
     if spamActive then
         local now = os.clock() * 1000
@@ -170,4 +136,3 @@ addEvent(Event.Packet, function(type, packet)
         end
     end
 end)
-
