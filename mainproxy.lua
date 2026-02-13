@@ -1,8 +1,8 @@
 -- =========================================================
---        ULTIMATE HOST PRO - SECURITY EDITION (VIP)
+--        ULTIMATE HOST PRO - SIRGONPROXY EDITION
 -- =========================================================
 -- Owner: Gonnn-Here
--- Versi: 1.8 (Mod Detector, Relog, Rejoin Added)
+-- Versi: 2.0 (Official Sirgonproxy Branded)
 -- =========================================================
 
 local whitelistURL = "https://raw.githubusercontent.com/Gonnn-Here/my-database/main/waitlist.txt"
@@ -16,19 +16,25 @@ local lastWrenchedNetID = -1
 local homeWorld, spamText = "", ""
 local lastSpamTime, spamInterval, myPing = 0, 0, 0
 local fpsEnabled, spamActive = false, false
-
--- Variabel FPS
 local lastFrameTime, frameCount, currentFPS = os.clock(), 0, 0
+
+-- Fungsi Log Utama (Sirgon Style)
+local function sirgonLog(msg)
+    local timestamp = os.date("%H:%M:%S")
+    local finalMsg = "`0[`i`w" .. timestamp .. "`0] `0[`bsirgonproxy`0] " .. msg
+    sendVariantList({[1]="OnConsoleMessage", [2]=finalMsg}, -1)
+end
 
 -- 1. SISTEM LISENSI
 function checkLicense()
     local status, content = makeRequest(whitelistURL, "GET")
     if status == 200 and content:find(myHWID) then
         isWhitelisted = true
-        sendVariantList({[1]="OnConsoleMessage", [2]="`2[LICENSE] `wHardware ID Recognized!"}, -1)
+        sirgonLog("`2LICENSE: `wHardware ID Recognized. Welcome, `w" .. myID)
     else
         isWhitelisted = false
-        sendVariantList({[1]="OnConsoleMessage", [2]="`4[LICENSE] `wDevice not registered!\n`wHWID: `9" .. myHWID}, -1)
+        sirgonLog("`4LICENSE: `wDevice not registered! HWID: `9" .. myHWID)
+        print("KODE HWID USER: " .. myHWID)
     end
 end
 
@@ -38,69 +44,58 @@ addEvent(Event.VariantList, function(varlist, netid)
     if not isWhitelisted then return end 
 
     local chat = varlist[1]
-    local function systemLog(msg)
-        sendVariantList({[1]="OnConsoleMessage", [2]=msg}, netid)
+
+    -- [ 2. WORLD LOG ALAS SIRGON ]
+    if varlist[1] == "OnConsoleMessage" and varlist[2]:find("Entered world") then
+        runOnMainThread(function()
+            local worldName = getLocal().world
+            sirgonLog("World `w" .. worldName .. " `2[`wNOPUNCH, `4JAMMED, `5Haunted!`2] `wentered.")
+            sirgonLog("`w[" .. worldName .. " World locked by `w" .. (myID) .. "`w]") 
+        end, 500)
+        return true 
     end
 
-    -- [ 2. MOD DETECTOR SYSTEM ]
-    -- Mendeteksi saat ada player baru masuk (OnSpawn)
+    -- [ 3. MOD DETECTOR ]
     if varlist[1] == "OnSpawn" then
         local mem = varlist[2]
         if mem:find("type|admin") or mem:find("mstate|1") then
-            -- Notifikasi di Chat & Overlay Tengah Layar
-            systemLog("`4[!!!] WARNING: MODERATOR DETECTED! `w(Name: " .. mem:match("name|([^|]+)") .. ")")
+            sirgonLog("`4[!!!] WARNING: MODERATOR DETECTED! `w(Name: " .. (mem:match("name|([^|]+)") or "Unknown") .. ")")
             sendVariantList({[1]="OnTextOverlay", [2]="`4[!!!] MODERATOR DETECTED [!!!]"}, -1)
-            -- Mainkan suara peringatan (opsional jika proxy support)
-            sendPacket(3, "action|play_sfx\nfile|audio/sfx/alert.wav")
         end
     end
 
-    -- [ 3. RELOG & REJOIN COMMANDS ]
-    if chat == "/relog" then
-        systemLog("`2[SYSTEM] `wRelogging...")
-        sendPacket(3, "action|logout") -- Memaksa akun logout ke menu awal
-        return true
-    elseif chat == "/rejoin" then
-        local currentWorld = getLocal().world
-        systemLog("`2[SYSTEM] `wRejoining world: " .. currentWorld)
-        sendPacket(3, "action|join_request\nname|" .. currentWorld)
-        return true
-    end
-
-    -- [ 4. CUSTOM NAME COMMANDS ]
+    -- [ 4. NAME COMMANDS ]
     if chat == "/hname" then
-        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid); return true
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid)
+        sirgonLog("Name: `wHIDDEN"); return true
     elseif chat == "/nlegend" then
-        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]"}, netid); return true
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]"}, netid)
+        sirgonLog("Name: `wLEGEND"); return true
     elseif chat == "/nreset" then
-        sendVariantList({[1] = "OnNameChanged", [2] = myID}, netid); return true
+        sendVariantList({[1] = "OnNameChanged", [2] = myID}, netid)
+        sirgonLog("Name: `wDEFAULT"); return true
     end
 
     -- [ 5. UTILITY & FPS ]
     if chat == "/fps" then
         fpsEnabled = not fpsEnabled
-        systemLog("`2[SYSTEM] `wFPS Counter: " .. (fpsEnabled and "`9ON" or "`4OFF")); return true
+        sirgonLog("FPS Counter: " .. (fpsEnabled and "`2ON" or "`4OFF")); return true
     elseif chat == "/wp" then
         wrenchPullMode = not wrenchPullMode
-        systemLog("`2[SYSTEM] `wWrench Pull Mode: " .. (wrenchPullMode and "`9ON" or "`4OFF")); return true
+        sirgonLog("Wrench Pull: " .. (wrenchPullMode and "`2ON" or "`4OFF")); return true
+    elseif chat == "/relog" then
+        sirgonLog("Relogging..."); sendPacket(3, "action|logout"); return true
+    elseif chat == "/rejoin" then
+        sirgonLog("Rejoining..."); sendPacket(3, "action|join_request\nname|" .. getLocal().world); return true
     end
 
-    -- [ 6. REAL WHEEL & WRENCH LOGIC ]
-    if varlist[1] == "OnDialogRequest" and varlist[2]:find("p_id") then
-        local targetNetID = varlist[2]:match("p_id|(%d+)")
-        if targetNetID then
-            lastWrenchedNetID = targetNetID
-            if wrenchPullMode then sendPacket(2, "action|input\n|text|/pull") return true end
-        end
-    end
-
+    -- [ 6. WHEEL CHECKER ]
     if varlist[1] == "OnTalkBubble" and varlist[2]:find("spun the wheel and got") then
         local name, number = varlist[2]:match("CP:(%w+).+got (%d+)") or varlist[2]:match("(.+) spun the wheel and got (%d+)")
         if number then
-            local totalDigit = 0
-            for digit in number:gmatch(".") do totalDigit = totalDigit + tonumber(digit) end
-            systemLog("`#REAL! `w" .. name .. " `2rolled `w" .. number .. " `0[`b" .. totalDigit .. "`0]")
-            sendVariantList({[1]="OnTextOverlay", [2]="`w" .. name .. " `2Punched `w" .. number .. " `0[`b" .. totalDigit .. "`0]"}, netid)
+            local total = 0; for d in number:gmatch(".") do total = total + tonumber(d) end
+            sirgonLog("`#WHEEL: `w" .. name .. " `2rolled `w" .. number .. " `0[`b" .. total .. "`0]")
+            sendVariantList({[1]="OnTextOverlay", [2]="`w" .. name .. " : `b" .. number .. " `0[`2" .. total .. "`0]"}, netid)
         end
     end
 
@@ -117,29 +112,30 @@ addEvent(Event.VariantList, function(varlist, netid)
     elseif chat:find("/pay") then
         local b, m = chat:match("(%d+)[xX*](%d+)")
         if b and m then
-            sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. (tonumber(b)*tonumber(m)))
-            return true
+            local totalPay = tonumber(b)*tonumber(m)
+            sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. totalPay)
+            sirgonLog("Paid: `w" .. totalPay .. " DLs"); return true
         end
     elseif chat == "/dropall" then
         for _, id in ipairs({7188, 1796, 242}) do
             sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|200")
         end
-        return true
+        sirgonLog("`wInventory Cleared"); return true
     end
 
     -- [ 8. SPAM & WORLD SAVE ]
     if chat:find("/sethome") then
         homeWorld = chat:match("/sethome%s+(%S+)"):upper()
-        systemLog("`2[SYSTEM] Home: " .. homeWorld); return true
+        sirgonLog("Home Set: `w" .. homeWorld); return true
     elseif chat == "/save" and homeWorld ~= "" then
         sendPacket(3, "action|join_request\nname|" .. homeWorld); return true
     elseif chat:find("/spam") then
         local t, m = chat:match("/spam%s+(.+)%s+(%d+)")
         if t and m then
             spamText, spamInterval, spamActive = t, tonumber(m)*60000, true
-            lastSpamTime = os.clock()*1000; systemLog("`2[SYSTEM] Spam ON"); sendPacket(2, "action|input\n|text|" .. spamText)
+            lastSpamTime = os.clock()*1000; sirgonLog("Spam: `2ON"); sendPacket(2, "action|input\n|text|" .. spamText)
         elseif chat == "/spam off" then
-            spamActive = false; systemLog("`2[SYSTEM] Spam OFF")
+            spamActive = false; sirgonLog("Spam: `4OFF")
         end
         return true
     end
@@ -152,19 +148,13 @@ addEvent(Event.Packet, function(type, packet)
     local currentTime = os.clock()
     frameCount = frameCount + 1
     if currentTime - lastFrameTime >= 1.0 then
-        currentFPS = frameCount
-        frameCount = 0
-        lastFrameTime = currentTime
+        currentFPS, frameCount, lastFrameTime = frameCount, 0, currentTime
         if fpsEnabled and isWhitelisted then
             local fpsColor = (currentFPS < 30 and "`4" or (currentFPS < 50 and "`e" or "`2"))
             sendVariantList({[1]="OnTextOverlay", [2]="`wFPS: " .. fpsColor .. currentFPS .. " `w| PING: `e" .. myPing}, -1)
         end
     end
-    if spamActive then
-        local now = os.clock() * 1000
-        if now - lastSpamTime >= spamInterval then
-            sendPacket(2, "action|input\n|text|" .. spamText)
-            lastSpamTime = now
-        end
+    if spamActive and os.clock() * 1000 - lastSpamTime >= spamInterval then
+        sendPacket(2, "action|input\n|text|" .. spamText); lastSpamTime = os.clock() * 1000
     end
 end)
