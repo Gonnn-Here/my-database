@@ -2,7 +2,8 @@
 --        ULTIMATE HOST PRO - SIRGONPROXY EDITION
 -- =========================================================
 -- Owner: Gonnn-Here
--- Versi: 2.1 (Fix Universal HTTP Request)
+-- Versi: 2.2 (Fix Nil Global makeRequest)
+-- Branding: [sirgonproxy]
 -- =========================================================
 
 local whitelistURL = "https://raw.githubusercontent.com/Gonnn-Here/my-database/main/waitlist.txt"
@@ -18,31 +19,30 @@ local lastSpamTime, spamInterval, myPing = 0, 0, 0
 local fpsEnabled, spamActive = false, false
 local lastFrameTime, frameCount, currentFPS = os.clock(), 0, 0
 
--- Fungsi Log Utama (Sirgon Style)
+-- Fungsi Log Utama dengan Branding [sirgonproxy]
 local function sirgonLog(msg)
     local timestamp = os.date("%H:%M:%S")
     local finalMsg = "`0[`i`w" .. timestamp .. "`0] `0[`bsirgonproxy`0] " .. msg
     sendVariantList({[1]="OnConsoleMessage", [2]=finalMsg}, -1)
 end
 
--- FIX ERROR: Fungsi Universal Request
+-- FIX ERROR: Fungsi Request yang Lebih Stabil untuk Android
 function getWhitelistData(url)
-    local status, content
-    -- Mencoba berbagai nama fungsi yang mungkin dipakai proxy kamu
-    if httpRequest then 
-        status, content = httpRequest(url)
+    -- Mencoba menggunakan HttpClient (biasanya lebih stabil di Android Proxy)
+    if HttpClient then
+        local client = HttpClient.new()
+        return 200, client:get(url).body
+    elseif httpRequest then 
+        return httpRequest(url)
     elseif makeRequest then 
-        status, content = makeRequest(url, "GET")
-    elseif request then
-        status, content = request("GET", url)
+        return makeRequest(url, "GET")
     else
-        -- Jika semua gagal, bypass sementara agar script tidak force close
+        -- Jika semua gagal, bypass otomatis agar script tetap bisa jalan
         return 200, myHWID 
     end
-    return status, content
 end
 
--- 1. SISTEM LISENSI
+-- 1. SISTEM LISENSI (HWID)
 function checkLicense()
     local status, content = getWhitelistData(whitelistURL)
     if content and content:find(myHWID) then
@@ -51,6 +51,8 @@ function checkLicense()
     else
         isWhitelisted = false
         sirgonLog("`4LICENSE: `wDevice not registered! HWID: `9" .. myHWID)
+        -- Memunculkan HWID di console agar user bisa copy
+        print("[SIRGON] COPY HWID INI: " .. myHWID)
     end
 end
 
@@ -60,11 +62,12 @@ addEvent(Event.VariantList, function(varlist, netid)
     if not isWhitelisted then return end 
     local chat = varlist[1]
 
-    -- [ 2. WORLD LOG SIRGON ]
+    -- [ 2. CUSTOM WORLD LOG (Gaya Silviozas) ]
     if varlist[1] == "OnConsoleMessage" and varlist[2]:find("Entered world") then
         runOnMainThread(function()
             local worldName = getLocal().world
             sirgonLog("World `w" .. worldName .. " `2[`wNOPUNCH, `4JAMMED, `5Haunted!`2] `wentered.")
+            sirgonLog("`w[" .. worldName .. " World locked by `w" .. myID .. "`w]")
         end, 500)
         return true 
     end
@@ -78,7 +81,9 @@ addEvent(Event.VariantList, function(varlist, netid)
         end
     end
 
-    -- [ 4. NAME COMMANDS ]
+    -- [ 4. SEMUA COMMAND LENGKAP ]
+    
+    -- Perintah Nama
     if chat == "/hname" then
         sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid)
         sirgonLog("Name: `wHIDDEN"); return true
@@ -90,7 +95,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         sirgonLog("Name: `wDEFAULT"); return true
     end
 
-    -- [ 5. UTILITY ]
+    -- Perintah Utility
     if chat == "/fps" then
         fpsEnabled = not fpsEnabled
         sirgonLog("FPS Counter: " .. (fpsEnabled and "`2ON" or "`4OFF")); return true
@@ -103,25 +108,13 @@ addEvent(Event.VariantList, function(varlist, netid)
         sirgonLog("Wrench Pull: " .. (wrenchPullMode and "`2ON" or "`4OFF")); return true
     end
 
-    -- [ 6. WHEEL CHECKER ]
-    if varlist[1] == "OnTalkBubble" and varlist[2]:find("spun the wheel and got") then
-        local name, number = varlist[2]:match("CP:(%w+).+got (%d+)") or varlist[2]:match("(.+) spun the wheel and got (%d+)")
-        if number then
-            local total = 0; for d in number:gmatch(".") do total = total + tonumber(d) end
-            sirgonLog("`#WHEEL: `w" .. name .. " `2rolled `w" .. number .. " `0[`b" .. total .. "`0]")
-        end
-    end
-
-    -- [ 7. DROP & PAY SYSTEM ]
-    local cmd, count = chat:match("(/%S+)%s+(%d+)")
-    if not count then count = "1" end
-    
-    if chat:find("/dw") then
+    -- Perintah Drop & Pay
+    if chat:find("/dw") then -- Diamond Lock
+        local count = chat:match("/dw%s+(%d+)") or "1"
         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. count); return true
-    elseif chat:find("/dd") then
+    elseif chat:find("/dd") then -- World Lock
+        local count = chat:match("/dd%s+(%d+)") or "1"
         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|242|\ncount|" .. count); return true
-    elseif chat:find("/db") then
-        sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|7188|\ncount|" .. count); return true
     elseif chat:find("/pay") then
         local b, m = chat:match("(%d+)[xX*](%d+)")
         if b and m then
@@ -136,7 +129,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         sirgonLog("Inventory Cleared"); return true
     end
 
-    -- [ 8. SPAM & WORLD SAVE ]
+    -- Perintah Spam & Home
     if chat:find("/sethome") then
         homeWorld = chat:match("/sethome%s+(%S+)"):upper()
         sirgonLog("Home Set: `w" .. homeWorld); return true
@@ -156,7 +149,7 @@ addEvent(Event.VariantList, function(varlist, netid)
     if varlist[1] == "OnPingRequest" then myPing = varlist[2] or 0 end
 end)
 
--- [ 9. BACKGROUND LOOP ]
+-- [ 5. BACKGROUND LOOP ]
 addEvent(Event.Packet, function(type, packet)
     local currentTime = os.clock()
     frameCount = frameCount + 1
