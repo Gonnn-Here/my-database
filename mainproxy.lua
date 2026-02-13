@@ -1,8 +1,8 @@
 -- =========================================================
---        ULTIMATE HOST PRO - BUSINESS EDITION (VIP)
+--        ULTIMATE HOST PRO - SECURITY EDITION (VIP)
 -- =========================================================
 -- Owner: Gonnn-Here
--- Versi: 1.7 (FULL COMMANDS + CUSTOM NAME + DROP SYSTEM)
+-- Versi: 1.8 (Mod Detector, Relog, Rejoin Added)
 -- =========================================================
 
 local whitelistURL = "https://raw.githubusercontent.com/Gonnn-Here/my-database/main/waitlist.txt"
@@ -10,20 +10,17 @@ local myHWID = getHWID()
 local myID = getLocal().name
 local isWhitelisted = false
 
--- Variabel Fitur Utama
+-- Variabel Fitur
 local wrenchPullMode = false
 local lastWrenchedNetID = -1
-local fastTele, spamActive = false, false
 local homeWorld, spamText = "", ""
 local lastSpamTime, spamInterval, myPing = 0, 0, 0
+local fpsEnabled, spamActive = false, false
 
--- Variabel Perhitungan FPS
-local fpsEnabled = false
-local lastFrameTime = os.clock()
-local frameCount = 0
-local currentFPS = 0
+-- Variabel FPS
+local lastFrameTime, frameCount, currentFPS = os.clock(), 0, 0
 
--- 1. SISTEM LISENSI (HWID CHECK)
+-- 1. SISTEM LISENSI
 function checkLicense()
     local status, content = makeRequest(whitelistURL, "GET")
     if status == 200 and content:find(myHWID) then
@@ -32,7 +29,6 @@ function checkLicense()
     else
         isWhitelisted = false
         sendVariantList({[1]="OnConsoleMessage", [2]="`4[LICENSE] `wDevice not registered!\n`wHWID: `9" .. myHWID}, -1)
-        print("KODE HWID USER: " .. myHWID)
     end
 end
 
@@ -46,19 +42,41 @@ addEvent(Event.VariantList, function(varlist, netid)
         sendVariantList({[1]="OnConsoleMessage", [2]=msg}, netid)
     end
 
-    -- [ 2. CUSTOM NAME COMMANDS ]
-    if chat == "/hname" then
-        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid)
-        systemLog("`2[SYSTEM] `wName changed to `wHIDDEN"); return true
-    elseif chat == "/nlegend" then
-        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]"}, netid)
-        systemLog("`2[SYSTEM] `wName changed to `wLEGEND"); return true
-    elseif chat == "/nreset" then
-        sendVariantList({[1] = "OnNameChanged", [2] = myID}, netid)
-        systemLog("`2[SYSTEM] `wName reset to default"); return true
+    -- [ 2. MOD DETECTOR SYSTEM ]
+    -- Mendeteksi saat ada player baru masuk (OnSpawn)
+    if varlist[1] == "OnSpawn" then
+        local mem = varlist[2]
+        if mem:find("type|admin") or mem:find("mstate|1") then
+            -- Notifikasi di Chat & Overlay Tengah Layar
+            systemLog("`4[!!!] WARNING: MODERATOR DETECTED! `w(Name: " .. mem:match("name|([^|]+)") .. ")")
+            sendVariantList({[1]="OnTextOverlay", [2]="`4[!!!] MODERATOR DETECTED [!!!]"}, -1)
+            -- Mainkan suara peringatan (opsional jika proxy support)
+            sendPacket(3, "action|play_sfx\nfile|audio/sfx/alert.wav")
+        end
     end
 
-    -- [ 3. UTILITY COMMANDS (/fps, /wp) ]
+    -- [ 3. RELOG & REJOIN COMMANDS ]
+    if chat == "/relog" then
+        systemLog("`2[SYSTEM] `wRelogging...")
+        sendPacket(3, "action|logout") -- Memaksa akun logout ke menu awal
+        return true
+    elseif chat == "/rejoin" then
+        local currentWorld = getLocal().world
+        systemLog("`2[SYSTEM] `wRejoining world: " .. currentWorld)
+        sendPacket(3, "action|join_request\nname|" .. currentWorld)
+        return true
+    end
+
+    -- [ 4. CUSTOM NAME COMMANDS ]
+    if chat == "/hname" then
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `wHIDDEN `e[" .. netid .. "]"}, netid); return true
+    elseif chat == "/nlegend" then
+        sendVariantList({[1] = "OnNameChanged", [2] = "`e[" .. myPing .. "ms] `w" .. myID .. " of Legend `e[" .. netid .. "]"}, netid); return true
+    elseif chat == "/nreset" then
+        sendVariantList({[1] = "OnNameChanged", [2] = myID}, netid); return true
+    end
+
+    -- [ 5. UTILITY & FPS ]
     if chat == "/fps" then
         fpsEnabled = not fpsEnabled
         systemLog("`2[SYSTEM] `wFPS Counter: " .. (fpsEnabled and "`9ON" or "`4OFF")); return true
@@ -67,7 +85,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         systemLog("`2[SYSTEM] `wWrench Pull Mode: " .. (wrenchPullMode and "`9ON" or "`4OFF")); return true
     end
 
-    -- [ 4. WRENCH & WHEEL LOGIC ]
+    -- [ 6. REAL WHEEL & WRENCH LOGIC ]
     if varlist[1] == "OnDialogRequest" and varlist[2]:find("p_id") then
         local targetNetID = varlist[2]:match("p_id|(%d+)")
         if targetNetID then
@@ -86,7 +104,7 @@ addEvent(Event.VariantList, function(varlist, netid)
         end
     end
 
-    -- [ 5. DROP & PAY SYSTEM ]
+    -- [ 7. DROP & PAY SYSTEM ]
     local cmd, count = chat:match("(/%S+)%s+(%d+)")
     if not count then count = "1" end
     
@@ -100,16 +118,16 @@ addEvent(Event.VariantList, function(varlist, netid)
         local b, m = chat:match("(%d+)[xX*](%d+)")
         if b and m then
             sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|1796|\ncount|" .. (tonumber(b)*tonumber(m)))
-            systemLog("`2[SYSTEM] Paid " .. (tonumber(b)*tonumber(m)) .. " DLs."); return true
+            return true
         end
     elseif chat == "/dropall" then
         for _, id in ipairs({7188, 1796, 242}) do
             sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|200")
         end
-        systemLog("`wCleaning inventory..."); return true
+        return true
     end
 
-    -- [ 6. SPAM & WORLD SAVE ]
+    -- [ 8. SPAM & WORLD SAVE ]
     if chat:find("/sethome") then
         homeWorld = chat:match("/sethome%s+(%S+)"):upper()
         systemLog("`2[SYSTEM] Home: " .. homeWorld); return true
@@ -129,7 +147,7 @@ addEvent(Event.VariantList, function(varlist, netid)
     if varlist[1] == "OnPingRequest" then myPing = varlist[2] or 0 end
 end)
 
--- [ 7. BACKGROUND LOOP ]
+-- [ 9. BACKGROUND LOOP ]
 addEvent(Event.Packet, function(type, packet)
     local currentTime = os.clock()
     frameCount = frameCount + 1
